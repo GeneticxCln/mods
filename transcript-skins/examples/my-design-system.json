@@ -1,0 +1,10 @@
+{
+  "name": "my-system",
+  "extends": "tokyo",
+  "accent": "#ff79c6",
+  "user": "#f1fa8c",
+  "add": "#50fa7b",
+  "del": "#ff5555",
+  "userBullet": "»",
+  "toolBullet": "◦"
+}

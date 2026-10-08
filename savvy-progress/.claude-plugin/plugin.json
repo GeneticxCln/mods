@@ -1,0 +1,15 @@
+{
+  "name": "savvy-progress",
+  "version": "0.1.0",
+  "description": "A live progress bar above the prompt while Claude works: todo progress, elapsed time, context size, cost so far and projected, and a little mascot for each running subagent.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mascot": {
+      "type": "string",
+      "title": "Subagent mascot",
+      "description": "The pixel mascot drawn beside each subagent.",
+      "options": ["invader", "cat", "ghost", "robot", "blocks", "none"],
+      "default": "robot"
+    }
+  }
+}

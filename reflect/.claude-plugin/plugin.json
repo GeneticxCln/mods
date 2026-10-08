@@ -1,0 +1,6 @@
+{
+  "name": "reflect",
+  "version": "0.1.0",
+  "description": "When you correct Claude (\"no, don't do it like that\"), offer to save the correction as a rule in this project's CLAUDE.md with one click.",
+  "types": "./types/index.d.ts"
+}

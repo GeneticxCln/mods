@@ -1,0 +1,26 @@
+{
+  "name": "cache-tax",
+  "version": "0.1.0",
+  "description": "Tells you when the prompt cache has gone cold, what your next message will cost to reload, and keeps it warm on request with /keepwarm.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "cacheTtlMinutes": {
+      "type": "number",
+      "title": "Cache lifetime (minutes)",
+      "description": "How long the prompt cache survives without a request: 5 for the default cache, 60 for the extended one.",
+      "default": 60
+    },
+    "inputPricePerMTok": {
+      "type": "number",
+      "title": "Input price (USD per million tokens)",
+      "description": "Your model's base input price. The estimate is only as good as this number.",
+      "default": 3
+    },
+    "maxKeepWarmPings": {
+      "type": "number",
+      "title": "Most keep-warm pings per idle stretch",
+      "description": "After this many pings in a row with no message from you, keep-warm stops and lets the cache go cold.",
+      "default": 6
+    }
+  }
+}

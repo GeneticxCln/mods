@@ -1,0 +1,53 @@
+{
+  "name": "mods",
+  "owner": {
+    "name": "GeneticxCln"
+  },
+  "plugins": [
+    {
+      "name": "blast-radius",
+      "source": "./blast-radius",
+      "description": "Before a destructive command runs, measure what it would touch and put it to you to approve or cancel."
+    },
+    {
+      "name": "reflect",
+      "source": "./reflect",
+      "description": "When you correct Claude (\"no, don't do it like that\"), offer to save the correction as a rule in this project's CLAUDE.md with one click."
+    },
+    {
+      "name": "replay-theater",
+      "source": "./replay-theater",
+      "description": "After a task, /replay walks through every step Claude took in the turn: each file edit as a diff, each command and its outcome, one step at a time."
+    },
+    {
+      "name": "you-should-know",
+      "source": "./you-should-know",
+      "description": "Reads what Claude wrote and what its commands printed for the things you would want to hear about (breaking changes, data loss, exposed secrets, costs, work left for you) and puts them in a banner."
+    },
+    {
+      "name": "cache-tax",
+      "source": "./cache-tax",
+      "description": "Tells you when the prompt cache has gone cold, what your next message will cost to reload, and keeps it warm on request with /keepwarm."
+    },
+    {
+      "name": "savvy-progress",
+      "source": "./savvy-progress",
+      "description": "A live progress bar above the prompt while Claude works: todo progress, elapsed time, context size, cost so far and projected, and a little mascot for each running subagent."
+    },
+    {
+      "name": "file-tree",
+      "source": "./file-tree",
+      "description": "A /tree pane showing the workspace's directory structure. Files Claude is touching shimmer, uncommitted changes show in yellow, and files committed this session show in green."
+    },
+    {
+      "name": "transcript-skins",
+      "source": "./transcript-skins",
+      "description": "Re-themes the transcript: your messages, replies, tool calls, edit diffs and the turn footer, from presets (tokyo, noah, paper, mono) or your own design-system JSON. Switch with /skin."
+    },
+    {
+      "name": "terminal-browser",
+      "source": "./terminal-browser",
+      "description": "A /browse pane beside the conversation: open a URL, a local file or a PR diff as text, follow links, go back, and see a quick audit (title, links, images without alt, headings)."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "you-should-know",
+  "version": "0.1.0",
+  "description": "Reads what Claude wrote and what its commands printed for the things you would want to hear about (breaking changes, data loss, exposed secrets, costs, work left for you) and puts them in a banner.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "scanWithModel": {
+      "type": "boolean",
+      "title": "Also ask a small model",
+      "description": "After a long answer, ask a small model for risks the built-in patterns miss. Costs a few hundred tokens per long turn.",
+      "default": false
+    }
+  }
+}

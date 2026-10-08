@@ -1,0 +1,15 @@
+{
+  "name": "transcript-skins",
+  "version": "0.1.0",
+  "description": "Re-themes the transcript: your messages, replies, tool calls, edit diffs and the turn footer, from presets (tokyo, noah, paper, mono) or your own design-system JSON. Switch with /skin.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "defaultSkin": {
+      "type": "string",
+      "title": "Skin to start with",
+      "description": "Used until you pick one with /skin. 'off' leaves the transcript as Claude Code draws it.",
+      "options": ["off", "tokyo", "noah", "paper", "mono"],
+      "default": "off"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "blast-radius",
+  "version": "0.1.0",
+  "description": "Before a destructive command runs, measure what it would touch and put it to you to approve or cancel."
+}
