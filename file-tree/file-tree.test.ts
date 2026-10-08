@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { ACTIVE_MS, dirMark, fileMark, flatten, parseStatus, relative, tidy } from './hooks/tree'
+import { ACTIVE_MS, dirMark, fileMark, flatten, folderArg, listing, parseStatus, relative, tidy } from './hooks/tree'
 
 // ── pure ─────────────────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ const disk: Record<string, ReturnType<typeof entry>[]> = {
 const git = { status: ' M src/main.ts\n', diff: 'src/util.ts\n', head: 'abc123\n' }
 const calls = { lists: [] as string[], copied: [] as string[], runs: [] as string[][] }
 
-function plumbing(on: On, hasGit = true) {
+function plumbing(on: On, hasGit = true, canOpenPane = true) {
   calls.lists.length = 0
   calls.copied.length = 0
   calls.runs.length = 0
@@ -89,7 +89,10 @@ function plumbing(on: On, hasGit = true) {
     if (ev.argv[1] === 'diff') return out(git.diff)
     return out('')
   })
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => {
+    if (!canOpenPane) throw new Error('this surface holds no panes')
+    return { value: { isPlaced: true } }
+  })
   on('ui.copy', (_$, ev) => {
     calls.copied.push(ev.text)
     return { value: { isCopied: true } }
@@ -104,7 +107,7 @@ test('/tree lists the root, hides noise, and shows committed and changed files i
   plumbing(on)
   await $.session.start(SESSION)
   const out = await $.command.run(RUN)
-  expect(out.text).toContain('File tree opened')
+  expect(out.text).toContain('w/')
   const ui = await $.ui.mount({ plugin: 'file-tree', surface: 'terminal', ...PANE })
   expect(await ui.find({ type: 'Text', text: /node_modules/ })).toBeUndefined()
   expect(await ui.find({ key: 'src' })).toBeDefined()
@@ -219,4 +222,67 @@ test('outside a repository the tree still lists files, without colours', async (
   expect(await ui.find({ key: 'README.md' })).toBeDefined()
   expect((await ui.findAll({ type: 'Text', text: /src\// }))[0]?.props.color).toBeUndefined()
   await ui.unmount()
+})
+
+// ── without the pane (a phone draws none): /tree in words ────────────────────
+
+const ent = (name: string, kind: 'file' | 'dir') => ({ name, kind })
+
+test('a folder as lines: folders with what is inside them, files with their flag, and the totals', () => {
+  const text = listing({
+    root: '/work/app',
+    dir: '',
+    entries: [ent('src', 'dir'), ent('docs', 'dir'), ent('README.md', 'file'), ent('notes.txt', 'file')],
+    status: { 'src/main.ts': 'M', 'notes.txt': '?' },
+    committed: ['docs/a.md', 'README.md'],
+    active: {},
+    now: 0,
+  })
+  expect(text).toBe(
+    [
+      'app/',
+      '▸ src/  (changes inside)',
+      '▸ docs/  (committed inside)',
+      '  README.md ●',
+      '  notes.txt ?',
+      '',
+      '2 changed, 2 committed this session',
+      'Changed: src/main.ts M, notes.txt ?',
+      '/tree <folder> lists a folder. ● committed, M/A/D/? changed.',
+    ].join('\n'),
+  )
+  expect(listing({ root: '/work/app', dir: 'src', entries: [], status: {}, committed: [], active: {}, now: 0 })).toContain('app/src/\n  (empty)')
+  const many = Array.from({ length: 70 }, (_, i) => ent(`f${i}.ts`, 'file'))
+  expect(listing({ root: '/w', dir: '', entries: many, status: {}, committed: [], active: {}, now: 0 })).toContain('… 10 more')
+})
+
+test('a long list of changes is cut at ten names with a count of the rest', () => {
+  const status = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`f${i}.ts`, 'M']))
+  const text = listing({ root: '/w', dir: '', entries: [], status, committed: [], active: {}, now: 0 })
+  expect(text).toContain('12 changed, 0 committed this session')
+  expect(text).toContain('f9.ts M, … 2 more')
+  expect(text).not.toContain('f10.ts')
+})
+
+test('a folder argument must stay inside the workspace', () => {
+  expect(folderArg('src/ui/')).toBe('src/ui')
+  expect(folderArg('./src')).toBe('src')
+  expect(folderArg('')).toBe('')
+  expect(folderArg('/etc')).toBeNull()
+  expect(folderArg('../secrets')).toBeNull()
+  expect(folderArg('src/../../x')).toBeNull()
+})
+
+test('/tree prints the root as text even where no pane can open; /tree src prints that folder; /tree .. is refused', async ($, on) => {
+  plumbing(on, true, false)
+  await $.session.start(SESSION)
+  const root = (await $.command.run(RUN)).text ?? ''
+  expect(root).toContain('▸ src/  (changes inside)')
+  expect(root).toContain('  README.md')
+  expect(root).not.toContain('node_modules')
+  const src = (await $.command.run({ ...RUN, args: 'src' })).text ?? ''
+  expect(src).toContain('w/src/')
+  expect(src).toContain('  main.ts M')
+  expect(src).toContain('  util.ts ●')
+  expect((await $.command.run({ ...RUN, args: '../x' })).text).toBe('Only folders inside the workspace: /tree <folder>.')
 })

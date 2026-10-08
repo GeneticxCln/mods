@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
-import { audit, decode, devServer, findings, htmlToMarkdown, kb, looksLikeDiff, resolveHref, target, toPage } from './hooks/page'
+import { CHUNK, audit, decode, devServer, findings, htmlToMarkdown, kb, looksLikeDiff, pageText, resolveHref, target, toPage } from './hooks/page'
 
 // ── pure ─────────────────────────────────────────────────────────────────────
 
@@ -108,13 +108,16 @@ const web: Record<string, { status?: number; type?: string; text: string }> = {
 }
 const net = { fetched: [] as string[], toasts: [] as string[] }
 
-function plumbing(on: On) {
+function plumbing(on: On, canOpenPane = true) {
   net.fetched.length = 0
   net.toasts.length = 0
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'browse' } }))
   on('session.cwd', () => ({ value: '/w' }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => {
+    if (!canOpenPane) throw new Error('this surface holds no panes')
+    return { value: { isPlaced: true } }
+  })
   on('http.fetch', (_$, e) => {
     net.fetched.push(e.url)
     const r = web[e.url]
@@ -135,7 +138,7 @@ function plumbing(on: On) {
 test('/browse opens the pane, fetches the page and draws it as markdown with an audit line', async ($, on) => {
   plumbing(on)
   await $.session.start(SESSION)
-  expect((await $.command.run(RUN('https://site.test/'))).text).toContain('Browsing')
+  expect((await $.command.run(RUN('https://site.test/'))).text).toContain('# Welcome')
   const ui = await $.ui.mount({ plugin: 'terminal-browser', surface: 'terminal', ...PANE })
   const md = await ui.find({ type: 'Markdown' })
   expect(md?.text).toContain('# Welcome')
@@ -237,4 +240,43 @@ test('the mobile app is told where the address bar is', async ($, on) => {
   const ui = await $.ui.mount({ plugin: 'terminal-browser', surface: 'mobile', ...PANE })
   expect(await ui.find({ type: 'Text', text: /address bar needs the terminal or desktop app/ })).toBeDefined()
   await ui.unmount()
+})
+
+// ── without the pane (a phone draws none): the page as text ──────────────────
+
+test('a page as text: its facts, its audit, then the body in stretches', () => {
+  const page = toPage('https://a.test/', 200, 'text/html', HTML)
+  const text = pageText(page)
+  expect(text).toContain('200 · ')
+  expect(text).toContain('"Demo & Co" · 2 links · 3 images · 1 forms')
+  expect(text).toContain('Audit: 1 of 3 images with no alt text')
+  expect(text).toContain('# Welcome')
+  expect(text).not.toContain('/browse more')
+  const long = toPage('https://a.test/x.txt', 200, 'text/plain', 'x'.repeat(CHUNK * 2 + 10))
+  expect(pageText(long, 0)).toContain(`… ${CHUNK + 10} more characters. /browse more continues.`)
+  expect(pageText(long, CHUNK * 2)).not.toContain('/browse more')
+  expect(pageText(toPage('https://a/b.txt', 200, 'text/plain', 'x'.repeat(70_000)), 60_000 - 10)).toContain('first 60,000 characters')
+})
+
+test('/browse prints the page into the chat even where no pane can open, and /browse more reads on', async ($, on) => {
+  plumbing(on, false)
+  web['https://long.test/'] = { type: 'text/plain', text: `${'a'.repeat(CHUNK)}${'b'.repeat(100)}` }
+  await $.session.start(SESSION)
+  const first = (await $.command.run(RUN('https://long.test/'))).text ?? ''
+  expect(first).toContain('a'.repeat(50))
+  expect(first).not.toContain('bbbb')
+  expect(first).toContain('… 100 more characters')
+  const more = (await $.command.run(RUN('more'))).text ?? ''
+  expect(more).toContain('b'.repeat(100))
+  expect(more).not.toContain('a'.repeat(50))
+  expect((await $.command.run(RUN('more'))).text).toBe('That is the end of the page.')
+})
+
+test('/browse with nothing open, /browse more with nothing open, and a failed load each say so', async ($, on) => {
+  plumbing(on)
+  await $.session.start(SESSION)
+  expect((await $.command.run(RUN(''))).text).toBe('Nothing open. /browse <url | file>.')
+  expect((await $.command.run(RUN('more'))).text).toBe('Nothing open. /browse <url | file>.')
+  expect((await $.command.run(RUN('https://down.test/'))).text).toContain('Could not load https://down.test/')
+  expect((await $.command.run(RUN('javascript:alert(1)'))).text).toContain('javascript: addresses are not opened here')
 })

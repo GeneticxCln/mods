@@ -135,3 +135,20 @@ export function devServer(output: string): string | null {
   const m = /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):\d{2,5}\b[^\s]*/i.exec(output)
   return m === null ? null : m[0].replace('0.0.0.0', 'localhost').replace(/[).,;]+$/, '')
 }
+
+export const CHUNK = 3500
+
+/** The page as text for the chat, `CHUNK` characters at a time: its facts first, then the body from `from`. */
+export function pageText(p: Page, from = 0): string {
+  const facts = [`${p.status}`, kb(p.bytes), p.contentType.split(';')[0] || 'unknown type']
+  if (p.audit !== null) facts.push(`"${p.audit.title || 'untitled'}"`, `${p.audit.links} links`, `${p.audit.images} images`, `${p.audit.forms} forms`)
+  const lines = [facts.join(' · ')]
+  const notes = p.audit === null ? [] : findings(p.audit)
+  if (notes.length > 0) lines.push(`Audit: ${notes.join('; ')}`)
+  const body = p.body.slice(from, from + CHUNK)
+  lines.push('', body)
+  const left = p.body.length - (from + CHUNK)
+  if (left > 0) lines.push('', `… ${left} more characters. /browse more continues.`)
+  else if (p.isCut) lines.push('', 'Shown up to the first 60,000 characters.')
+  return lines.join('\n')
+}

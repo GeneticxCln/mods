@@ -1,7 +1,7 @@
 /**
  * Turning a tool call into one step of a replay. Pure.
  */
-import type { Step } from '../types'
+import type { Run, Step } from '../types'
 
 export const MAX_RUNS = 10
 export const MAX_STEPS = 200
@@ -67,3 +67,27 @@ export const filesTouched = (steps: readonly Step[]): Map<string, number> => {
 export const isWorthReplaying = (steps: readonly Step[]): boolean => steps.some(s => s.tool !== 'Read' && s.tool !== 'Grep' && s.tool !== 'Glob')
 
 export const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n))
+
+export const LIST_MAX = 30
+
+/** The whole task as plain lines, for surfaces that draw no pane: what was asked, then every step. */
+export function replayText(run: Run): string {
+  const files = filesTouched(run.steps)
+  const head = [`"${run.prompt || 'Task'}"`]
+  if (run.seconds !== null) head.push(`${run.seconds}s`)
+  head.push(`${run.steps.length} step${run.steps.length === 1 ? '' : 's'}`)
+  if (files.size > 0) head.push(`${files.size} file${files.size === 1 ? '' : 's'} changed`)
+  const lines = [head.join(' · ')]
+  for (const s of run.steps.slice(0, LIST_MAX)) lines.push(`${s.n}. ${s.isError ? 'failed: ' : ''}${s.title}`)
+  if (run.steps.length > LIST_MAX) lines.push(`… ${run.steps.length - LIST_MAX} more`)
+  lines.push('/replay <n> shows one step in full.')
+  return lines.join('\n')
+}
+
+/** One step in full: its title, the diff of an edit, and what a command printed. */
+export function stepText(step: Step): string {
+  const lines = [`Step ${step.n}: ${step.isError ? 'failed: ' : ''}${step.title}`]
+  if (step.diff !== undefined) lines.push('```diff', clip(step.diff.trimEnd(), 3000), '```')
+  if (step.detail !== undefined) lines.push(step.detail)
+  return lines.join('\n')
+}

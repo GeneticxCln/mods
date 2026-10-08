@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { filesTouched, isWorthReplaying, stepOf, unified, withOutcome } from './hooks/steps'
+import { filesTouched, isWorthReplaying, replayText, stepOf, stepText, unified, withOutcome } from './hooks/steps'
 
 // ── steps: pure ──────────────────────────────────────────────────────────────
 
@@ -126,4 +126,45 @@ test('a subagent finishing does not close the main task: steps after it are stil
   await $.turn.complete({ ...done, turnId: 't4' })
   const r = await $.command.run({ command: 'replay', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   expect(r.text).toContain('2 steps')
+})
+
+// ── without the pane (a phone draws none): /replay in words ──────────────────
+
+const RPL = (args: string) => ({ command: 'replay', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } }) as const
+
+test('the task as lines, and one step in full', () => {
+  const edit = stepOf(2, 'Edit', { file_path: '/w/a.ts', old_string: 'a', new_string: 'b' })
+  const run = { id: 't', prompt: 'rename it', isDone: true, seconds: 12, steps: [stepOf(1, 'Read', { file_path: '/w/a.ts' }), edit, withOutcome(stepOf(3, 'Bash', { command: 'npm test' }), 'FAIL', true)] }
+  expect(replayText(run)).toBe(
+    '"rename it" · 12s · 3 steps · 1 file changed\n1. Read /w/a.ts\n2. Edit /w/a.ts\n3. failed: $ npm test\n/replay <n> shows one step in full.',
+  )
+  expect(stepText(edit)).toContain('```diff\n--- /w/a.ts')
+  expect(stepText(edit)).toContain('-a\n+b')
+  expect(stepText(run.steps[2]!)).toBe('Step 3: failed: $ npm test\nFAIL')
+  const long = { ...run, steps: Array.from({ length: 35 }, (_, i) => stepOf(i + 1, 'Bash', { command: `c${i}` })) }
+  expect(replayText(long)).toContain('… 5 more')
+  expect(replayText(long).split('\n').filter(l => /^\d+\. /.test(l)).length).toBe(30)
+})
+
+test('/replay prints the last task as text; /replay 2 prints a step; a missing step says so', async ($, on) => {
+  mock.clock(on)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+  on('tool.call', () => ({ result: {}, text: 'ok' }))
+  on('ui.open', () => {
+    throw new Error('this surface holds no panes')
+  })
+  expect((await $.command.run(RPL(''))).text).toContain('Nothing to replay')
+  await $.turn.start({ text: 'rename the helper', turnId: 't1' })
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'u1', file_path: '/w/a.ts', old_string: 'helper', new_string: 'util' })
+  await $.tool.call({ tool: 'Bash', tool_use_id: 'u2', command: 'npm test' })
+  await $.turn.complete({ ...done, turnId: 't1' })
+  const all = (await $.command.run(RPL(''))).text ?? ''
+  expect(all).toContain('"rename the helper"')
+  expect(all).toContain('1. Edit /w/a.ts')
+  expect(all).toContain('2. $ npm test')
+  const one = (await $.command.run(RPL('1'))).text ?? ''
+  expect(one).toContain('-helper')
+  expect(one).toContain('+util')
+  expect((await $.command.run(RPL('9'))).text).toBe('No step 9. This task has 2.')
 })

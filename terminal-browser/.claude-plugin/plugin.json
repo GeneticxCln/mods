@@ -1,6 +1,6 @@
 {
   "name": "terminal-browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A /browse pane beside the conversation: open a URL, a local file or a PR diff as text, follow links, go back, and see a quick audit (title, links, images without alt, headings).",
   "types": "./types/index.d.ts"
 }

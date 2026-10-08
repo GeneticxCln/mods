@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Position, Run } from '../types'
-import { MAX_RUNS, MAX_STEPS, clamp, filesTouched, isWorthReplaying, stepOf, withOutcome } from './steps'
+import { MAX_RUNS, MAX_STEPS, clamp, filesTouched, isWorthReplaying, replayText, stepOf, stepText, withOutcome } from './steps'
 
 const PANE = 'replay-theater'
 
@@ -76,13 +76,24 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'replay' }, async $ => {
+  on('command.run', { command: 'replay' }, async ($, e) => {
     const list = await read($, runs)
-    if (list.length === 0) return { text: 'Nothing to replay yet. Ask Claude to do something first.' }
+    const run = list[list.length - 1]
+    if (run === undefined) return { text: 'Nothing to replay yet. Ask Claude to do something first.' }
+    const arg = e.args.trim()
+    // `/replay 3`: one step in full, in words, for a surface with no pane.
+    if (/^\d+$/.test(arg)) {
+      const step = run.steps[Number(arg) - 1]
+      return { text: step === undefined ? `No step ${arg}. This task has ${run.steps.length}.` : stepText(step) }
+    }
     await update($, pos, () => ({ run: -1, step: 0 }))
-    await $.ui.open({ id: PANE, title: 'Replay' })
+    try {
+      await $.ui.open({ id: PANE, title: 'Replay' })
+    } catch {
+      // A surface that cannot hold a pane still gets the text below.
+    }
 
-    return { text: `Replay opened: ${list[list.length - 1]?.steps.length ?? 0} steps.` }
+    return { text: replayText(run) }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

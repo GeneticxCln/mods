@@ -1,6 +1,6 @@
 {
   "name": "file-tree",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A /tree pane showing the workspace's directory structure. Files Claude is touching shimmer, uncommitted changes show in yellow, and files committed this session show in green.",
   "types": "./types/index.d.ts"
 }

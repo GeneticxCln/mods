@@ -9,12 +9,12 @@ A local plugin marketplace (`mods`). Each folder is one plugin of function hooks
 | `savvy-progress` | Live progress band above the prompt: todos, elapsed time, context, cost and projection, subagent mascots | `/progress` (status in words), `/progress hide\|show` |
 | `transcript-skins` | Re-themes your messages, replies, tool rows, edit diffs and the turn footer | `/skin tokyo\|noah\|paper\|mono\|off\|file.json` |
 | `you-should-know` | Banner for breaking changes, data loss, exposed secrets, costs, work left for you | a toast, then `/know` |
-| `file-tree` | Workspace tree pane; active files shimmer, changes yellow, committed green | `/tree` |
+| `file-tree` | Workspace tree pane; active files shimmer, changes yellow, committed green | `/tree` (prints the tree as text too), `/tree <folder>` |
 | `cache-tax` | Warns when the prompt cache is cold, what the reload costs, keeps it warm | `/keepwarm status\|on\|off` (also a toast when the cache goes cold) |
 | `blast-radius` | Measures destructive commands and asks before they run | automatic |
 | `reflect` | Offers to save your corrections as rules in CLAUDE.md | toast, then `/reflect save` or `/reflect dismiss` |
-| `terminal-browser` | Text-mode browser pane for URLs, local files and PR `.diff`s | `/browse <url\|file>` |
-| `replay-theater` | Step through every edit and command of the last task | `/replay` |
+| `terminal-browser` | Text-mode browser pane for URLs, local files and PR `.diff`s | `/browse <url\|file>` (prints the page as text), `/browse more` |
+| `replay-theater` | Step through every edit and command of the last task | `/replay` (prints the steps), `/replay <n>` |
 
 ## Install
 

@@ -33,6 +33,8 @@ declare module 'claude-code' {
       history: string[]
       /** Index into `history` of the page shown. */
       at: number
+      /** How far into the page `/browse more` has read, for a surface with no pane to scroll. */
+      offset: number
       isLoading: boolean
       error: string | null
     }

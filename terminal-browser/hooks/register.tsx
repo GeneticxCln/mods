@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { devServer, findings, kb, resolveHref, target, toPage } from './page'
+import { CHUNK, devServer, findings, kb, pageText, resolveHref, target, toPage } from './page'
 
 const PANE = 'terminal-browser'
 const HISTORY_MAX = 50
@@ -11,6 +11,7 @@ const address = atom({ plugin: 'terminal-browser', key: 'address' } as const, ''
 const history = atom({ plugin: 'terminal-browser', key: 'history' } as const, [])
 const at = atom({ plugin: 'terminal-browser', key: 'at' } as const, -1)
 const isLoading = atom({ plugin: 'terminal-browser', key: 'isLoading' } as const, false)
+const offset = atom({ plugin: 'terminal-browser', key: 'offset' } as const, 0)
 const error = atom({ plugin: 'terminal-browser', key: 'error' } as const, null)
 
 /** Fetch or read `input`, show it, and (unless going back or forward) add it to the history. */
@@ -24,6 +25,7 @@ async function go($: EngineInterface, input: string, record: boolean): Promise<v
   }
   await update($, isLoading, () => true)
   await update($, error, () => null)
+  await update($, offset, () => 0)
   try {
     const where = to.kind === 'http' ? to.url : to.path
     if (to.kind === 'http') {
@@ -66,10 +68,26 @@ export const register: Register = on => {
 
   on('command.run', { command: 'browse' }, async ($, e) => {
     const input = e.args.trim()
-    await $.ui.open({ id: PANE, title: 'Browser' })
+    try {
+      await $.ui.open({ id: PANE, title: 'Browser' })
+    } catch {
+      // A surface that cannot hold a pane still gets the page as text below.
+    }
+    // `/browse more`: the next stretch of the page, for a surface with no pane to scroll.
+    if (input.toLowerCase() === 'more') {
+      const p = await read($, page)
+      if (p === null) return { text: 'Nothing open. /browse <url | file>.' }
+      const next = (await read($, offset)) + CHUNK
+      if (next >= p.body.length) return { text: 'That is the end of the page.' }
+      await update($, offset, () => next)
+      return { text: pageText(p, next) }
+    }
     if (input !== '') await go($, input, true)
+    const err = await read($, error)
+    if (err !== null) return { text: err }
+    const p = await read($, page)
 
-    return { text: input === '' ? 'Browser opened. Type an address in the bar.' : `Browsing ${input}.` }
+    return { text: p === null ? 'Nothing open. /browse <url | file>.' : pageText(p, 0) }
   })
 
   // A dev server announcing itself is the moment you would want to look at it: say how, once per address.

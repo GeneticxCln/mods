@@ -83,3 +83,48 @@ export const hasRecent = (active: Readonly<Record<string, number>>, now: number)
 export function pruned(active: Readonly<Record<string, number>>, now: number): Record<string, number> {
   return Object.fromEntries(Object.entries(active).filter(([, t]) => now - t < ACTIVE_MS * 10))
 }
+
+export const LIST_MAX = 60
+const CHANGED_SHOWN = 10
+
+export type ListingInput = {
+  root: string
+  dir: string
+  entries: readonly Entry[]
+  status: Readonly<Record<string, string>>
+  committed: readonly string[]
+  active: Readonly<Record<string, number>>
+  now: number
+}
+
+/** One folder as plain lines, for surfaces that draw no pane: what is in it, what changed, what was committed. */
+export function listing(i: ListingInput): string {
+  const name = i.root.split('/').filter(Boolean).pop() ?? i.root
+  const lines = [i.dir === '' ? `${name}/` : `${name}/${i.dir}/`]
+  for (const e of i.entries.slice(0, LIST_MAX)) {
+    const path = i.dir === '' ? e.name : `${i.dir}/${e.name}`
+    if (e.kind === 'dir') {
+      const mark = dirMark(path, i.status, i.committed, i.active, i.now)
+      const word = mark === 'dirty' ? '  (changes inside)' : mark === 'committed' ? '  (committed inside)' : mark === 'active' ? '  (active)' : ''
+      lines.push(`▸ ${e.name}/${word}`)
+    } else {
+      const mark = fileMark(path, i.status, i.committed, i.active, i.now)
+      const flag = i.status[path] !== undefined ? ` ${i.status[path]}` : mark === 'committed' ? ' ●' : mark === 'active' ? ' (active)' : ''
+      lines.push(`  ${e.name}${flag}`)
+    }
+  }
+  if (i.entries.length > LIST_MAX) lines.push(`… ${i.entries.length - LIST_MAX} more`)
+  if (i.entries.length === 0) lines.push('  (empty)')
+  const changed = Object.entries(i.status)
+  lines.push('', `${changed.length} changed, ${i.committed.length} committed this session`)
+  if (changed.length > 0) lines.push(`Changed: ${changed.slice(0, CHANGED_SHOWN).map(([p, c]) => `${p} ${c}`).join(', ')}${changed.length > CHANGED_SHOWN ? `, … ${changed.length - CHANGED_SHOWN} more` : ''}`)
+  lines.push('/tree <folder> lists a folder. ● committed, M/A/D/? changed.')
+  return lines.join('\n')
+}
+
+/** A folder named in `/tree <folder>`, if it stays inside the workspace. */
+export function folderArg(arg: string): string | null {
+  const dir = arg.trim().replace(/^\.\//, '').replace(/\/+$/, '')
+  if (dir.startsWith('/') || dir.split('/').includes('..')) return null
+  return dir
+}

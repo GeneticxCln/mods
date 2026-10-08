@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Entry } from '../types'
-import { dirMark, fileMark, flatten, hasRecent, parseNames, parseStatus, pruned, relative, tidy } from './tree'
+import { dirMark, fileMark, flatten, folderArg, hasRecent, listing, parseNames, parseStatus, pruned, relative, tidy } from './tree'
 
 const PANE = 'file-tree'
 
@@ -92,10 +92,27 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'tree' }, async ($, e) => {
-    if ((await read($, root)) === null || e.args.trim() === 'refresh') await loadTree($)
-    await $.ui.open({ id: PANE, title: 'Files' })
+    const arg = e.args.trim()
+    const isRefresh = arg === 'refresh'
+    const dir = isRefresh ? '' : folderArg(arg)
+    if (dir === null) return { text: 'Only folders inside the workspace: /tree <folder>.' }
+    if ((await read($, root)) === null || isRefresh) await loadTree($)
+    try {
+      await $.ui.open({ id: PANE, title: 'Files' })
+    } catch {
+      // A surface that cannot hold a pane still gets the text below.
+    }
+    const cwd = (await read($, root)) ?? (await $.session.cwd())
+    let entries = (await read($, children))[dir]
+    if (entries === undefined) {
+      entries = await listDir($, cwd, dir)
+      const loaded = entries
+      await update($, children, c => ({ ...c, [dir]: loaded }))
+    }
 
-    return { text: 'File tree opened.' }
+    return {
+      text: listing({ root: cwd, dir, entries, status: await read($, status), committed: await read($, committed), active: await read($, active), now: await $.clock.now() }),
+    }
   })
 
   on('tool.call', async ($, e, next) => {
