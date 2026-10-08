@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { AgentRow } from '../types'
-import { bar, duration, isTheme, money, projected, sprite, thousands, todosOf } from './progress'
+import { TOAST_AFTER_MS, bar, duration, isTheme, money, projected, sprite, statusText, thousands, todosOf } from './progress'
 import type { Theme } from './progress'
 
 const startedAt = atom({ plugin: 'savvy-progress', key: 'startedAt' } as const, null)
@@ -41,7 +41,7 @@ export const register: Register = (on, options) => {
   const theme: Theme = isTheme(options.mascot) ? options.mascot : 'robot'
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'progress', description: 'Show or hide the progress band: /progress [show|hide]' })
+    await $.command.register({ name: 'progress', description: 'What Claude is doing now, and the band above the prompt: /progress [show|hide]' })
     $.clock.every(TICK_MS, () => void tick($))
 
     return next(e)
@@ -82,16 +82,33 @@ export const register: Register = (on, options) => {
     await update($, startedAt, () => null)
     await update($, agents, () => [])
     await update($, summary, () => parts.join(' · '))
+    // The band is not drawn on every surface (a phone has none): a long turn's end is a toast as well.
+    if (began !== null && t - began >= TOAST_AFTER_MS) $.ui.toast(parts.join(' · '), { timeoutMs: 8000 })
 
     return next(e)
   })
 
   on('command.run', { command: 'progress' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
-    const hide = arg === 'hide' ? true : arg === 'show' ? false : !(await read($, isHidden))
-    await update($, isHidden, () => hide)
+    if (arg === 'hide' || arg === 'show') {
+      await update($, isHidden, () => arg === 'hide')
+      return { text: arg === 'hide' ? 'Progress band hidden. /progress show brings it back.' : 'Progress band shown.' }
+    }
+    // No argument: say it in words, for the surfaces that draw no band.
+    const spent = await read($, cost)
+    const first = await read($, costStart)
 
-    return { text: hide ? 'Progress band hidden. /progress show brings it back.' : 'Progress band shown.' }
+    return {
+      text: statusText({
+        began: await read($, startedAt),
+        now: await $.clock.now(),
+        todos: await read($, todos),
+        turnCost: spent !== null && first !== null ? Math.max(0, spent - first) : null,
+        tokens: await read($, tokens),
+        agents: await read($, agents),
+        summary: await read($, summary),
+      }),
+    }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

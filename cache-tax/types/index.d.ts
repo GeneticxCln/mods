@@ -14,6 +14,8 @@ declare module 'claude-code' {
       /** Keep-warm pings sent since the person last wrote. */
       pings: number
       isDismissed: boolean
+      /** The person has been told this stretch of idleness went cold, so the toast is said once. */
+      isToldCold: boolean
     }
   }
 }

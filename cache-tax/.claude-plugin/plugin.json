@@ -1,6 +1,6 @@
 {
   "name": "cache-tax",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tells you when the prompt cache has gone cold, what your next message will cost to reload, and keeps it warm on request with /keepwarm.",
   "types": "./types/index.d.ts",
   "userConfig": {

@@ -158,3 +158,59 @@ test('with the option on, a long answer is read by the model and its finding sho
   expect(await ui.find({ type: 'Text', text: /Silent failure/ })).toBeDefined()
   await ui.unmount()
 })
+
+// ── without the banner (a phone draws none): toast and /know ────────────────
+
+const KNOW = (args: string) => ({ command: 'know', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } }) as const
+
+function phone(on: import('claude-code').On) {
+  const toasts: string[] = []
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+  on('command.register', () => ({ value: { command: 'know' } }))
+  on('tool.call', () => ({ result: {}, text: 'npm warn deprecated request@2.88.2: request has been deprecated' }))
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  return toasts
+}
+
+test('a serious finding is a toast with the finding in it; /know lists everything', async ($, on) => {
+  const toasts = phone(on)
+  await $.turn.start({ text: 'upgrade', turnId: 't1' })
+  await $.turn.complete(done('Upgraded. This is a breaking change: init() now takes an object. It costs $20 per month per seat.'))
+  expect(toasts.length).toBe(1)
+  expect(toasts[0]).toContain('Breaking change')
+  const text = (await $.command.run(KNOW(''))).text ?? ''
+  expect(text).toContain('! Breaking change:')
+  expect(text).toContain('- Cost or quota:')
+})
+
+test('only lesser findings give a count and point at /know', async ($, on) => {
+  const toasts = phone(on)
+  await $.turn.start({ text: 'x', turnId: 't1' })
+  await $.turn.complete(done('You will need to run the migration before deploying.'))
+  expect(toasts).toEqual(['You should know: 1 thing flagged. Type /know'])
+})
+
+test('a warning from a command alone is enough for the toast at the end of the turn', async ($, on) => {
+  const toasts = phone(on)
+  await $.turn.start({ text: 'install', turnId: 't1' })
+  await $.tool.call({ tool: 'Bash', tool_use_id: 'u1', command: 'npm install' })
+  await $.turn.complete(done('Installed.'))
+  expect(toasts).toEqual(['You should know: 1 thing flagged. Type /know'])
+})
+
+test('a quiet turn says nothing, and /know says so; /know clear empties the list', async ($, on) => {
+  const toasts = phone(on)
+  await $.turn.start({ text: 'x', turnId: 't1' })
+  await $.turn.complete(done('Renamed a variable.'))
+  expect(toasts).toEqual([])
+  expect((await $.command.run(KNOW(''))).text).toBe('Nothing flagged in the last turn.')
+  await $.turn.start({ text: 'y', turnId: 't2' })
+  await $.turn.complete(done('There is data loss risk here.', 't2'))
+  expect((await $.command.run(KNOW('clear'))).text).toBe('Cleared 1.')
+  expect((await $.command.run(KNOW(''))).text).toBe('Nothing flagged in the last turn.')
+  expect((await $.command.run(KNOW('clear'))).text).toBe('Nothing to clear.')
+})

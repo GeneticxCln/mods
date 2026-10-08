@@ -250,3 +250,58 @@ test('a subagent finishing does not end the main turn\'s band', async ($, on) =>
   expect(await ui.find({ type: 'Text', text: /Done in/ })).toBeUndefined()
   await ui.unmount()
 })
+
+// ── without the band (a phone draws none): /progress in words, and a toast ───
+
+import { statusText } from './hooks/progress'
+
+test('the status text carries the same facts as the band, in lines', () => {
+  const todos = { done: 2, total: 4, current: 'Doing step 2' }
+  expect(statusText({ began: null, now: 0, todos: null, turnCost: null, tokens: null, agents: [], summary: null })).toBe('Idle: nothing is running.')
+  expect(statusText({ began: null, now: 0, todos: null, turnCost: null, tokens: null, agents: [], summary: 'Done in 3s' })).toBe('Done in 3s')
+  expect(
+    statusText({ began: 1000, now: 73_000, todos, turnCost: 0.5, tokens: 48_000, agents: [{ label: 'Explore: map auth', status: 'running' }], summary: null }),
+  ).toBe('Working 1m 12s · 2/4 todos · ctx 48.0k · $0.50 (~$1.00 projected)\nNow: Doing step 2\n- Explore: map auth (running)')
+  expect(statusText({ began: 0, now: 5000, todos: null, turnCost: null, tokens: null, agents: [], summary: null })).toBe('Working 5s · no todo list')
+})
+
+test('/progress with no argument reports a running turn; hide and show still work', async ($, on) => {
+  meter.usd = 1
+  meter.tokens = 10_000
+  agentsNow.length = 0
+  const clock = plumbing(on)
+  await $.session.start(SESSION)
+  expect((await $.command.run(RUN)).text).toBe('Idle: nothing is running.')
+  await $.turn.start({ text: 'build', turnId: 't1' })
+  await $.tool.call({ tool: 'TodoWrite', tool_use_id: 'u1', ...todo('completed', 'in_progress') })
+  meter.usd = 1.4
+  await clock.advance(5_000)
+  const text = (await $.command.run(RUN)).text ?? ''
+  expect(text).toContain('Working 5s · 1/2 todos')
+  expect(text).toContain('$0.40')
+  expect(text).toContain('Now: Doing step 1')
+  expect((await $.command.run({ ...RUN, args: 'hide' })).text).toContain('hidden')
+  expect((await $.command.run({ ...RUN, args: 'show' })).text).toContain('shown')
+})
+
+test('after a turn, /progress says how it went; a long turn toasts, a short one does not', async ($, on) => {
+  meter.usd = 1
+  agentsNow.length = 0
+  const clock = plumbing(on)
+  const toasts: string[] = []
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'quick', turnId: 't1' })
+  await clock.advance(5_000)
+  await $.turn.complete(done)
+  expect(toasts).toEqual([])
+  await $.turn.start({ text: 'long', turnId: 't2' })
+  meter.usd = 1.25
+  await clock.advance(72_000)
+  await $.turn.complete({ ...done, turnId: 't2' })
+  expect(toasts).toEqual(['Done in 1m 12s · $0.25'])
+  expect((await $.command.run(RUN)).text).toBe('Done in 1m 12s · $0.25')
+})

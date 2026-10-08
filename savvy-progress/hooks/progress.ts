@@ -67,3 +67,30 @@ export function todosOf(input: unknown): Todos | null {
 }
 
 export const isTheme = (v: unknown): v is Theme => v === 'invader' || v === 'cat' || v === 'ghost' || v === 'robot' || v === 'blocks' || v === 'none'
+
+export type StatusInput = {
+  began: number | null
+  now: number
+  todos: Todos | null
+  turnCost: number | null
+  tokens: number | null
+  agents: ReadonlyArray<{ label: string; status: string }>
+  summary: string | null
+}
+
+/** What `/progress` prints: the same facts as the band, as plain lines. */
+export function statusText(i: StatusInput): string {
+  if (i.began === null) return i.summary ?? 'Idle: nothing is running.'
+  const total = projected(i.turnCost, i.todos)
+  const facts = [`Working ${duration(Math.max(0, i.now - i.began))}`]
+  facts.push(i.todos === null ? 'no todo list' : `${i.todos.done}/${i.todos.total} todos`)
+  if (i.tokens !== null) facts.push(`ctx ${thousands(i.tokens)}`)
+  if (i.turnCost !== null) facts.push(total === null ? money(i.turnCost) : `${money(i.turnCost)} (~${money(total)} projected)`)
+  const lines = [facts.join(' · ')]
+  if (i.todos?.current != null) lines.push(`Now: ${i.todos.current}`)
+  for (const a of i.agents) lines.push(`- ${a.label} (${a.status})`)
+  return lines.join('\n')
+}
+
+/** A turn at least this long is worth a toast when it ends; a quick one is not. */
+export const TOAST_AFTER_MS = 20_000

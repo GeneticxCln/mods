@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { costs, dollars, minutes, numberOr, phase, pingEveryMs, thousands } from './tax'
+import { costs, dollars, minutes, numberOr, phase, pingEveryMs, statusText, thousands } from './tax'
 
 const lastUsedAt = atom({ plugin: 'cache-tax', key: 'lastUsedAt' } as const, null)
 const tokens = atom({ plugin: 'cache-tax', key: 'tokens' } as const, null)
@@ -9,10 +9,11 @@ const now = atom({ plugin: 'cache-tax', key: 'now' } as const, 0)
 const isKeepWarm = atom({ plugin: 'cache-tax', key: 'isKeepWarm' } as const, false)
 const pings = atom({ plugin: 'cache-tax', key: 'pings' } as const, 0)
 const isDismissed = atom({ plugin: 'cache-tax', key: 'isDismissed' } as const, false)
+const isToldCold = atom({ plugin: 'cache-tax', key: 'isToldCold' } as const, false)
 
 const TICK_MS = 30_000
 
-type Settings = { ttl: number; maxPings: number }
+type Settings = { ttl: number; maxPings: number; price: number }
 
 /** Every 30 seconds: move the clock the band reads, say when the cache is about to cool, and ping if asked to. */
 async function tick($: EngineInterface, c: Settings): Promise<void> {
@@ -23,6 +24,13 @@ async function tick($: EngineInterface, c: Settings): Promise<void> {
   const idle = last === null ? null : t - last
   const p = phase(idle, toks, c.ttl)
   $.ui.status(p === 'cooling' ? `cache cools in ${Math.max(1, c.ttl - minutes(idle ?? 0))} min` : undefined)
+
+  // The band above the prompt is not drawn on every surface (a phone has none), so say it once as a toast.
+  if (p === 'cold' && toks !== null && idle !== null && !(await read($, isToldCold))) {
+    await update($, isToldCold, () => true)
+    const { cold, warm } = costs(toks, { ttlMinutes: c.ttl, pricePerMTok: c.price })
+    $.ui.toast(`Cache went cold (idle ${minutes(idle)} min). Your next message re-reads ~${thousands(toks)} tokens: ${dollars(cold)} instead of ${dollars(warm)}. /keepwarm on to prevent it.`, { timeoutMs: 15_000 })
+  }
 
   if (!(await read($, isKeepWarm)) || last === null || idle === null || idle < pingEveryMs(c.ttl)) return
   const sent = await read($, pings)
@@ -49,7 +57,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'keepwarm', description: 'Keep the prompt cache warm while you are away: /keepwarm [on|off]' })
-    $.clock.every(TICK_MS, () => void tick($, { ttl, maxPings }))
+    $.clock.every(TICK_MS, () => void tick($, { ttl, maxPings, price }))
 
     return next(e)
   })
@@ -57,6 +65,7 @@ export const register: Register = (on, options) => {
   on('prompt.submit', async ($, e, next) => {
     await update($, pings, () => 0)
     await update($, isDismissed, () => false)
+    await update($, isToldCold, () => false)
     $.ui.status(undefined)
 
     return next(e)
@@ -68,6 +77,7 @@ export const register: Register = (on, options) => {
     const t = await $.clock.now()
     await update($, lastUsedAt, () => t)
     await update($, now, () => t)
+    await update($, isToldCold, () => false)
     await update($, tokens, () => usage.context.tokens ?? null)
 
     return next(e)
@@ -75,6 +85,11 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'keepwarm' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
+    if (arg === 'status') {
+      const last = await read($, lastUsedAt)
+      const idleMs = last === null ? null : Math.max(0, (await $.clock.now()) - last)
+      return { text: statusText({ idleMs, tokens: await read($, tokens), ttl, price, isKeepWarm: await read($, isKeepWarm), pings: await read($, pings), maxPings }) }
+    }
     const was = await read($, isKeepWarm)
     const wants = arg === 'on' ? true : arg === 'off' ? false : !was
     await update($, isKeepWarm, () => wants)

@@ -41,3 +41,23 @@ export const thousands = (n: number): string => (n >= 1000 ? `${Math.round(n / 1
 export const pingEveryMs = (ttlMinutes: number): number => Math.max(60_000, ttlMinutes * 60_000 - Math.min(5 * 60_000, (ttlMinutes * 60_000) / 5))
 
 export const numberOr = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback)
+
+export type StatusInput = { idleMs: number | null; tokens: number | null; ttl: number; price: number; isKeepWarm: boolean; pings: number; maxPings: number }
+
+/** What `/keepwarm status` prints: where the cache stands, what a reload costs, and whether keep-warm is on. */
+export function statusText(i: StatusInput): string {
+  if (i.idleMs === null || i.tokens === null) return 'No conversation yet, so there is no cache to keep warm.'
+  if (i.tokens < MIN_TOKENS) return `The conversation is only ${i.tokens} tokens, too small for the cache to matter.`
+  const idle = minutes(i.idleMs)
+  const p = phase(i.idleMs, i.tokens, i.ttl)
+  const { cold, warm } = costs(i.tokens, { ttlMinutes: i.ttl, pricePerMTok: i.price })
+  const head =
+    p === 'cold'
+      ? `Cache is cold (idle ${idle} min).`
+      : p === 'cooling'
+        ? `Cache is cooling: idle ${idle} of ${i.ttl} min.`
+        : `Cache is warm: idle ${idle} of ${i.ttl} min.`
+  const cost = `Reloading ~${thousands(i.tokens)} tokens costs ${dollars(cold)} instead of ${dollars(warm)}.`
+  const keep = i.isKeepWarm ? `Keep-warm is on (${i.pings} of ${i.maxPings} pings used).` : 'Keep-warm is off. /keepwarm on turns it on.'
+  return `${head} ${cost} ${keep}`
+}

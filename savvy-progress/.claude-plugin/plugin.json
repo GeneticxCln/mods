@@ -1,6 +1,6 @@
 {
   "name": "savvy-progress",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A live progress bar above the prompt while Claude works: todo progress, elapsed time, context size, cost so far and projected, and a little mascot for each running subagent.",
   "types": "./types/index.d.ts",
   "userConfig": {

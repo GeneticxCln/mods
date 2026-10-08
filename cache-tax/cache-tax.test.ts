@@ -212,3 +212,64 @@ test('a subagent finishing is not a use of the main conversation\'s cache', asyn
   expect(await ui.find({ type: 'Text', text: /Cache is cold/ })).toBeDefined()
   await ui.unmount()
 })
+
+// ── without the band (a phone draws none): a toast and /keepwarm status ──────
+
+import { statusText } from './hooks/tax'
+
+test('the status sentence covers warm, cooling, cold, tiny and nothing yet', () => {
+  const base = { ttl: 60, price: 3, isKeepWarm: false, pings: 0, maxPings: 6 }
+  expect(statusText({ ...base, idleMs: null, tokens: null })).toContain('No conversation yet')
+  expect(statusText({ ...base, idleMs: 5 * MIN, tokens: 2_000 })).toContain('only 2000 tokens')
+  expect(statusText({ ...base, idleMs: 10 * MIN, tokens: 200_000 })).toBe(
+    'Cache is warm: idle 10 of 60 min. Reloading ~200k tokens costs $1.20 instead of $0.06. Keep-warm is off. /keepwarm on turns it on.',
+  )
+  expect(statusText({ ...base, idleMs: 57 * MIN, tokens: 200_000 })).toContain('Cache is cooling: idle 57 of 60 min.')
+  expect(statusText({ ...base, idleMs: 90 * MIN, tokens: 200_000, isKeepWarm: true, pings: 2 })).toContain('Cache is cold (idle 90 min).')
+  expect(statusText({ ...base, idleMs: 90 * MIN, tokens: 200_000, isKeepWarm: true, pings: 2 })).toContain('Keep-warm is on (2 of 6 pings used).')
+})
+
+test('going cold is a toast, said once, with the cost and how to prevent it; the next turn re-arms it', async ($, on) => {
+  const clock = mock.clock(on)
+  const toasts: string[] = []
+  on('session.start', ($, e) => ({ cwd: e.cwd }) as never)
+  on('command.register', () => ({ value: { command: 'keepwarm' } }))
+  on('session.usage', () => ({ value: usage(200_000) }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  await $.session.start(SESSION)
+  await $.turn.complete(done)
+  await clock.advance(59 * MIN)
+  expect(toasts).toEqual([])
+  await clock.advance(10 * MIN)
+  expect(toasts.length).toBe(1)
+  expect(toasts[0]).toContain('Cache went cold (idle 60 min)')
+  expect(toasts[0]).toContain('$1.20 instead of $0.06')
+  expect(toasts[0]).toContain('/keepwarm on')
+  await clock.advance(60 * MIN)
+  expect(toasts.length).toBe(1)
+  await $.turn.complete({ ...done, turnId: 't2' })
+  await clock.advance(61 * MIN)
+  expect(toasts.length).toBe(2)
+})
+
+test('/keepwarm status tells you where the cache stands without changing anything', async ($, on) => {
+  const clock = mock.clock(on)
+  on('session.start', ($, e) => ({ cwd: e.cwd }) as never)
+  on('command.register', () => ({ value: { command: 'keepwarm' } }))
+  on('session.usage', () => ({ value: usage(200_000) }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+  await $.session.start(SESSION)
+  expect((await $.command.run({ ...RUN, args: 'status' })).text).toContain('No conversation yet')
+  await $.turn.complete(done)
+  await clock.advance(10 * MIN)
+  const text = (await $.command.run({ ...RUN, args: 'status' })).text ?? ''
+  expect(text).toContain('Cache is warm: idle 10 of 60 min.')
+  expect(text).toContain('Keep-warm is off')
+  expect((await $.command.run({ ...RUN, args: 'status' })).text).toContain('Keep-warm is off')
+  expect((await $.command.run({ ...RUN, args: 'on' })).text).toContain('Keep-warm is on')
+  expect((await $.command.run({ ...RUN, args: 'status' })).text).toContain('Keep-warm is on (0 of 6 pings used).')
+})

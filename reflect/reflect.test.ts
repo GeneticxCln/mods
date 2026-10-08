@@ -97,3 +97,65 @@ test('while a survey holds the band the offer waits and the engine draws its own
   expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined()
   await ui.unmount()
 })
+
+// ── without the band (a phone draws none): toast and /reflect ────────────────
+
+const RUN = (args: string) => ({ command: 'reflect', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } }) as const
+
+function phone(on: import('claude-code').On, files: Record<string, string> = {}) {
+  const toasts: string[] = []
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('command.register', () => ({ value: { command: 'reflect' } }))
+  on('session.cwd', () => ({ value: '/work' }))
+  on('fs.exists', (_$, e) => ({ value: e.path in files }))
+  on('fs.read', (_$, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.write', (_$, e) => {
+    files[e.path] = e.text
+    return { value: undefined }
+  })
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  return { files, toasts }
+}
+
+test('a correction raises a toast that says how to save it', async ($, on) => {
+  const { toasts } = phone(on)
+  await $.prompt.submit({ text: "no, don't mock the database", wait: false, origin: TYPED })
+  expect(toasts.length).toBe(1)
+  expect(toasts[0]).toContain("Don't mock the database.")
+  expect(toasts[0]).toContain('/reflect save')
+  await $.prompt.submit({ text: 'add a retry', wait: false, origin: TYPED })
+  expect(toasts.length).toBe(1)
+})
+
+test('/reflect shows the waiting rule, /reflect save writes it, and it is then gone', async ($, on) => {
+  const { files } = phone(on, { '/work/CLAUDE.md': '# Notes\n' })
+  expect((await $.command.run(RUN(''))).text).toContain('No correction waiting')
+  await $.prompt.submit({ text: 'never touch the migrations folder', wait: false, origin: TYPED })
+  const shown = (await $.command.run(RUN(''))).text ?? ''
+  expect(shown).toContain('Never touch the migrations folder.')
+  expect(shown).toContain('/reflect save')
+  const saved = (await $.command.run(RUN('save'))).text ?? ''
+  expect(saved).toContain('Saved to CLAUDE.md: Never touch the migrations folder.')
+  expect(files['/work/CLAUDE.md']).toBe('# Notes\n\n## Rules from feedback\n\n- Never touch the migrations folder.\n')
+  expect((await $.command.run(RUN('save'))).text).toContain('Nothing to save')
+})
+
+test('/reflect dismiss drops the offer and writes nothing', async ($, on) => {
+  const { files } = phone(on)
+  await $.prompt.submit({ text: 'always run the linter first', wait: false, origin: TYPED })
+  expect((await $.command.run(RUN('dismiss'))).text).toContain('Dropped')
+  expect((await $.command.run(RUN('save'))).text).toContain('Nothing to save')
+  expect(Object.keys(files)).toEqual([])
+  expect((await $.command.run(RUN('dismiss'))).text).toContain('Nothing was waiting')
+})
+
+test('typing a slash command does not wipe the rule it is about to save', async ($, on) => {
+  const { files } = phone(on)
+  await $.prompt.submit({ text: 'never use var', wait: false, origin: TYPED })
+  await $.prompt.submit({ text: '/reflect save', wait: false, origin: TYPED })
+  expect((await $.command.run(RUN('save'))).text).toContain('Saved to CLAUDE.md')
+  expect(files['/work/CLAUDE.md']).toContain('- Never use var.')
+})
