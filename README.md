@@ -1,6 +1,6 @@
 # Nine Claude Code mods
 
-Private repo: add it from a session that has GitHub access to this account.
+Public repo: anyone can add this marketplace; no GitHub sign-in is needed to install.
 
 A local plugin marketplace (`mods`). Each folder is one plugin of function hooks.
 
