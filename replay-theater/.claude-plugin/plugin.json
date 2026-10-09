@@ -1,6 +1,6 @@
 {
   "name": "replay-theater",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "After a task, /replay walks through every step Claude took in the turn: each file edit as a diff, each command and its outcome, one step at a time.",
   "types": "./types/index.d.ts"
 }

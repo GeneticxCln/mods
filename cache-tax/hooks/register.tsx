@@ -56,7 +56,11 @@ export const register: Register = (on, options) => {
   const config = { ttlMinutes: ttl, pricePerMTok: price }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'keepwarm', description: 'Keep the prompt cache warm while you are away: /keepwarm [on|off]' })
+    try {
+      await $.command.register({ name: 'keepwarm', description: 'Keep the prompt cache warm while you are away: /keepwarm [on|off]' })
+    } catch {
+      // A mode with no session bound cannot register a command; the command still answers, and the rest of start-up must still run.
+    }
     $.clock.every(TICK_MS, () => void tick($, { ttl, maxPings, price }))
 
     return next(e)

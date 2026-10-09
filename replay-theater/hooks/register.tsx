@@ -15,7 +15,11 @@ export const register: Register = on => {
   let startedAt = 0
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'replay', description: 'Walk through the steps of the last task, one at a time' })
+    try {
+      await $.command.register({ name: 'replay', description: 'Walk through the steps of the last task, one at a time' })
+    } catch {
+      // A mode with no session bound cannot register a command; the command still answers, and the rest of start-up must still run.
+    }
 
     return next(e)
   })

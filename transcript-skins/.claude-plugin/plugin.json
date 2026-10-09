@@ -1,6 +1,6 @@
 {
   "name": "transcript-skins",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Re-themes the transcript: your messages, replies, tool calls, edit diffs and the turn footer, from presets (tokyo, noah, paper, mono) or your own design-system JSON. Switch with /skin.",
   "types": "./types/index.d.ts",
   "userConfig": {

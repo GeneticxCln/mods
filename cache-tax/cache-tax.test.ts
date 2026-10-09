@@ -273,3 +273,22 @@ test('/keepwarm status tells you where the cache stands without changing anythin
   expect((await $.command.run({ ...RUN, args: 'on' })).text).toContain('Keep-warm is on')
   expect((await $.command.run({ ...RUN, args: 'status' })).text).toContain('Keep-warm is on (0 of 6 pings used).')
 })
+
+test('a mode that cannot register commands still starts the timer, so the cold toast still comes', async ($, on) => {
+  const clock = mock.clock(on)
+  const toasts: string[] = []
+  on('session.start', ($, e) => ({ cwd: e.cwd }) as never)
+  on('command.register', () => {
+    throw new Error('no session is bound in this process')
+  })
+  on('session.usage', () => ({ value: usage(200_000) }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  await $.session.start(SESSION)
+  await $.turn.complete(done)
+  await clock.advance(61 * MIN)
+  expect(toasts.length).toBe(1)
+})

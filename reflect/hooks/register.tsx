@@ -27,7 +27,11 @@ async function saveRule($: EngineInterface, rule: Rule): Promise<void> {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'reflect', description: 'Save the correction Reflect noticed as a rule: /reflect [save|dismiss]' })
+    try {
+      await $.command.register({ name: 'reflect', description: 'Save the correction Reflect noticed as a rule: /reflect [save|dismiss]' })
+    } catch {
+      // A mode with no session bound cannot register a command; the command still answers, and the rest of start-up must still run.
+    }
 
     return next(e)
   })

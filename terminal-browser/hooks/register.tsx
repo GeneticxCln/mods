@@ -61,7 +61,11 @@ export const register: Register = on => {
   const seen = new Set<string>()
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'browse', description: 'Open a page beside the conversation as text: /browse <url | file | PR .diff url>' })
+    try {
+      await $.command.register({ name: 'browse', description: 'Open a page beside the conversation as text: /browse <url | file | PR .diff url>' })
+    } catch {
+      // A mode with no session bound cannot register a command; the command still answers, and the rest of start-up must still run.
+    }
 
     return next(e)
   })

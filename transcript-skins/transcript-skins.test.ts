@@ -71,7 +71,7 @@ const ENGINE = 'engine drew this'
 /** The cross-session store, in memory, where the test can look at it. */
 const memory = new Map<string, unknown>()
 
-function plumbing(on: On, entries: Record<string, unknown> = {}) {
+function plumbing(on: On, entries: Record<string, unknown> = {}, canRegister = true) {
   memory.clear()
   for (const [k, v] of Object.entries(entries)) memory.set(k, v)
   on('store.get', (_$, e) => ({ value: memory.get(e.key) }))
@@ -80,7 +80,10 @@ function plumbing(on: On, entries: Record<string, unknown> = {}) {
     return { value: undefined }
   })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
-  on('command.register', () => ({ value: { command: 'skin' } }))
+  on('command.register', () => {
+    if (!canRegister) throw new Error('no session is bound in this process')
+    return { value: { command: 'skin' } }
+  })
   on('session.cwd', () => ({ value: '/w' }))
   on('ui.render', () => ({ type: 'Text', children: [ENGINE] }))
 }
@@ -259,5 +262,13 @@ test('a saved "off" beats the default-skin option', { options: { defaultSkin: 'm
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'transcript-skins', surface: 'terminal', component: 'UserMessage', props: user })
   expect(await ui.find({ type: 'Text', text: ENGINE })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a mode that cannot register commands still loads the saved skin', async ($, on) => {
+  plumbing(on, { skin: PRESETS.paper }, false)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'transcript-skins', surface: 'terminal', component: 'UserMessage', props: user })
+  expect((await ui.find({ type: 'Text', text: 'fix the bug' }))?.props.color).toBe(PRESETS.paper!.user)
   await ui.unmount()
 })

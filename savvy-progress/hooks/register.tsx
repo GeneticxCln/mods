@@ -41,7 +41,11 @@ export const register: Register = (on, options) => {
   const theme: Theme = isTheme(options.mascot) ? options.mascot : 'robot'
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'progress', description: 'What Claude is doing now, and the band above the prompt: /progress [show|hide]' })
+    try {
+      await $.command.register({ name: 'progress', description: 'What Claude is doing now, and the band above the prompt: /progress [show|hide]' })
+    } catch {
+      // A mode with no session bound cannot register a command; the command still answers, and the rest of start-up must still run.
+    }
     $.clock.every(TICK_MS, () => void tick($))
 
     return next(e)

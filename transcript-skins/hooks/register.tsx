@@ -10,7 +10,11 @@ const STORE_KEY = 'skin'
 
 export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'skin', description: 'Re-theme the transcript: /skin [tokyo|noah|paper|mono|off|<file.json>]' })
+    try {
+      await $.command.register({ name: 'skin', description: 'Re-theme the transcript: /skin [tokyo|noah|paper|mono|off|<file.json>]' })
+    } catch {
+      // A mode with no session bound cannot register a command; the command still answers, and the rest of start-up must still run.
+    }
     const saved = (await $.store.get(STORE_KEY)) as Tokens | 'off' | null | undefined
     if (saved === 'off') await update($, skin, () => null)
     else if (saved !== undefined && saved !== null && typeof saved === 'object') await update($, skin, () => saved)

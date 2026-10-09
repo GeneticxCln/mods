@@ -85,7 +85,11 @@ async function shimmer($: EngineInterface): Promise<void> {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'tree', description: 'Open the file tree pane: /tree [refresh]' })
+    try {
+      await $.command.register({ name: 'tree', description: 'Open the file tree pane: /tree [refresh]' })
+    } catch {
+      // A mode with no session bound cannot register a command; the command still answers, and the rest of start-up must still run.
+    }
     $.clock.every(SHIMMER_MS, () => void shimmer($))
 
     return next(e)
